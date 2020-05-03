@@ -5,6 +5,8 @@ import os
 
 load_dotenv()
 
+GUILD_ID = int(os.getenv("GUILD_ID"))
+
 # A list of server categories ids mapped to games
 CATEGORIES = {
 	"Counter-Strike: Global Offensive": 689211828517339161,
@@ -27,7 +29,7 @@ class MyClient(discord.Client):
 
 	def __init__(self):
 		super().__init__()
-		self.check_lock = Lock()
+		self.moving_players = set()
 
 	async def on_ready(self):
 		print('Logged on as {0}'.format(self.user))
@@ -40,32 +42,33 @@ class MyClient(discord.Client):
 	async def on_voice_state_update(self, member, before, after):
 		if before.channel != after.channel:
 			print("Voice state update")
-			await self.check_move_to_other_game()
+			if str(member) in self.moving_players:
+				self.moving_players.remove(str(member))
+			else:
+				await self.check_move_to_other_game()
 
 	async def check_move_to_other_game(self):
-		self.check_lock.acquire()
-		try:
-			for guild in self.guilds:
-				if guild.id == int(os.getenv("GUILD_ID")):
-					for vc in guild.voice_channels:
-						activity = self.check_same_activity(vc.members)
-						if activity is not None and activity in CATEGORIES:
-							# Move all Member of this voice chat into the new category
-							print("Members of {0} are all playing {1}".format(vc.name, activity))
-							category = self.get_category(guild, CATEGORIES[activity])
-							if category is not None:
-								if vc.category != category:
-									availible_vc = None
-									for new_vc in category.voice_channels:
-										# print(new_vc.user_limit)
-										if len(new_vc.members) <= 1 and (new_vc.user_limit == 0 or new_vc.user_limit - len(new_vc.members)) >= len(vc.members):
-											availible_vc = new_vc
-											break
-									if availible_vc is not None:
-										print("Moving them into {0}".format(new_vc.name))
-										await self.move_members_to_channel(new_vc, vc.members)
-		finally:
-			self.check_lock.release()
+		for guild in self.guilds:
+			if guild.id == GUILD_ID:
+				for vc in guild.voice_channels:
+					activity = self.check_same_activity(vc.members)
+					if activity is not None and activity in CATEGORIES:
+						# Move all Member of this voice chat into the new category
+						print("Members of {0} are all playing {1}".format(vc.name, activity))
+						category = self.get_category(guild, CATEGORIES[activity])
+						if category is not None:
+							if vc.category != category:
+								availible_vc = None
+								for new_vc in category.voice_channels:
+									# print(new_vc.user_limit)
+									if len(new_vc.members) <= 1 and (new_vc.user_limit == 0 or new_vc.user_limit - len(new_vc.members)) >= len(vc.members):
+										availible_vc = new_vc
+										break
+								if availible_vc is not None:
+									members_to_move = [m for m in vc.members if str(m) not in self.moving_players]
+									print("Moving them into {0}".format(new_vc.name))
+									self.moving_players.update([str(m) for m in members_to_move])
+									await self.move_members_to_channel(new_vc, members_to_move)
 
 	def check_same_activity(self, members):
 		# Checks if all the memebers have the same activity and returns it, otherwise returns None
