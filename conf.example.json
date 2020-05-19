@@ -1,0 +1,13 @@
+{
+	"token": "SECRET_TOKEN",
+	"guild_id": 123456789,
+	"maintainer_role_id": 123456789,
+	"channel_blacklist": [
+		123456789,
+		0987654321
+	],
+	"games": {
+		"Game Name 1": 0123456789,
+		"Game Name 2": 9876543210
+	}
+}
